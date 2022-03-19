@@ -131,7 +131,7 @@ public class Pion {
     private boolean verifBlocPierre(int y, int x, PlateauDeJeu p){
         boolean pasBloc = true;
         
-        if(p.getPlateau()[y][x].getClass().getName()=="BlocPierre"){
+        if(p.getPlateau()[y][x].getBlocDePierre()){
             pasBloc=false;
         }
         
@@ -182,6 +182,16 @@ public class Pion {
         else return true;
     }
     
+    private boolean toutesLesVerificationsPion(int y, int x, PlateauDeJeu p){ //servira a verifier ce qu'il y a apres une flaque et pourrait empecher un pion de s'engager sur la flaque
+        if(!this.verifBordPlateau(y, x)){
+            return false;
+        }
+        else if(!this.verifMonstre(y, x, p)){
+            return false;
+        }
+        else return true;
+    }
+    
     public void Deplacement(PlateauDeJeu p){
         int i= this.nombreDeDeplacementsPossibles();
         int direction=this.demanderDirection(); //première fois qu'on demande la direction
@@ -214,31 +224,35 @@ public class Pion {
                                     if(this.toutesLesVerificationsBloc(y-2, x, p) && this.verifFlaqueSang(y-2, x, p)){ //s'il n'y a rien après le bloc
                                         this.deplacerPion(direction);
                                         i--;
-                                        BlocPierre b = new BlocPierre(x, y-2, true); //echange des cases Case et BlocPierre
-                                        p.setPlateau(y-2, x, b);
-                                        Case c= new Case(x, y-1, true);
-                                        p.setPlateau(y-1, x, c);
-                                        
+                                        p.getPlateau()[y-2][x].setBlocDePierre(true);
+                                        p.getPlateau()[y-1][x].setBlocDePierre(false); //echange cases bloc de pierre et case non bloc de pierre
                                     }
                                     else if (!this.verifFlaqueSang(y-2, x, p)){
                                         //s'il y a une flaque de sang après le bloc
                                         boolean finFlaque=false;
                                         int k=y-2,j=x;
                                         int nbCases=0;
-                                        while(finFlaque){
+                                        while(!finFlaque){
                                             finFlaque=p.getPlateau()[k][j].getClass().getName()!="Flaque";
                                             k--;
-                                            if(!finFlaque){ //pas fini
+                                            if(!finFlaque){ //compteur du nombre de cases flaques dans cette direction
                                                 nbCases++;
                                             }
-                                            
                                         }
-                                       if(this.toutesLesVerificationsBloc(y-2-nbCases, x, p)){
-                                           //si après la flaque il n'y a rien, poussé derrière
-                                           
-                                       }
-                                        
-                                        //s'il y a qqch va sur la dernière case de la flaque à compléter
+                                        if(this.toutesLesVerificationsBloc(y-2-nbCases, x, p)){//si la case après la flaque est vide
+                                            p.getPlateau()[y-1][x].setBlocDePierre(false); //le bloc de pierre n'est plus sur cette case
+                                            p.getPlateau()[y-2-nbCases][x].setBlocDePierre(true); //le bloc de pierre est poussé sur la case apres la flaque
+                                            this.deplacerPion(direction); //le pion est deplace apres avoir decale le bloc de pierre
+                                            i--;
+                                            direction=this.demanderDirection();
+                                        }
+                                        else  { //si il y a quelque chose sur la case apres la flaque
+                                            p.getPlateau()[y-1][x].setBlocDePierre(false); //le bloc de pierre n'est plus sur cette case
+                                            p.getPlateau()[y-2-(nbCases-1)][x].setBlocDePierre(true); //le bloc de pierre est sur cette case, la derniere case flaque
+                                            this.deplacerPion(direction); //le pion est deplace apres avoir decale le bloc de pierre
+                                            i--;
+                                            direction=this.demanderDirection();
+                                        }
                                     }
                                     else{ //s'il y a un pion, un autre bloc, le monstre ou le bord du plateau après le bloc
                                         System.out.println("Vous ne pouvez pas pousser ce bloc de pierre, veuillez changer de direction");
@@ -247,6 +261,152 @@ public class Pion {
                                 }
                             }
                             //s'il y a une flaque de sang à compléter
+                            else{
+                                boolean finFlaque=false;
+                                int k=y-1,j=x;
+                                int nbCases=0;
+                                while(!finFlaque){
+                                    finFlaque=p.getPlateau()[k][j].getClass().getName()!="Flaque";
+                                    k--;
+                                    if(!finFlaque){ //compteur du nombre de cases flaques dans cette direction
+                                        nbCases++;
+                                    }
+                                }
+                                if(this.toutesLesVerificationsPion(y-nbCases-1, x, p)){ //si il n'y a ni monstre ni bord de plateau sur la case après la flaque
+                                    if(this.verifBlocPierre(y-nbCases, x, p)){
+                                        //s'il n'y a pas de bloc de pierre coince d'un tour precedent sur la flaque d'hemoglobine
+                                        if(this.verifPion(y-1-nbCases, x, p)){
+                                            //s'il n'y a pas de pion sur la case juste apres la flaque
+                                            if(this.verifBlocPierre(y-1-nbCases, x, p)){
+                                                //s'il n'y a pas de bloc de pierre apres la flaque = s'il n'y a aucun pb apres la flaque
+                                                for(int a=0; a<nbCases+1; a++){ //jusqu'a apres la flaque
+                                                    this.deplacerPion(direction);
+                                                }
+                                                i--;
+                                                direction=this.demanderDirection(); 
+                                            }
+                                            else{
+                                                //s'il y a un bloc de pierre apres la flaque
+                                                //il faut vérifier que le bloc de pierre peut etre decale
+                                                if(this.toutesLesVerificationsBloc(y-2-nbCases, x, p)){ //on verifie que la case apres le bloc est vide
+                                                    p.getPlateau()[y-nbCases-2][x].setBlocDePierre(false);
+                                                    p.getPlateau()[y-nbCases-2][x].setBlocDePierre(true); //echange de la case bloc de pierre
+                                                    for(int a=0; a<nbCases+1; a++){ //jusqu'a apres la flaque, pour mettre le pion
+                                                        this.deplacerPion(direction);
+                                                    }
+                                                    i--;
+                                                    direction=this.demanderDirection(); 
+                                                }
+                                                else{
+                                                    //la case apres le bloc n'est pas vide, le pion ne pourra pas pousser le bloc, il devra donc changer de direction, necessite au moins un deplacement
+                                                     if(i>1){
+                                                        for(int a=0; a<nbCases-1; a++){ //jusqu'a l'avant derniere case de la flaque, pour mettre le pion
+                                                             this.deplacerPion(direction);
+                                                        } 
+                                                        i--;
+                                                        direction=this.empecherArret(); //impossible de s'arreter sur cette case
+                                                    }
+                                                     else{ //il n'a pas assez de deplacement disponible
+                                                         System.out.println("Vous ne pourrez pas vous arreter sur la flaque, changez de direction\n");
+                                                     }
+                                                }
+                                            }
+                                        }
+                                        else{
+                                            //s'il y a un pion sur la case juste apres la flaque, il faut verifier que plus d'un deplacement est encore disponible
+                                            if(i>1){
+                                               for(int a=0; a<nbCases+1; a++){ 
+                                                        this.deplacerPion(direction);
+                                                        i--;
+                                                        direction=this.empecherArret(); //impossible de s'arreter sur cette case
+                                                } 
+                                            }
+                                            else{
+                                                System.out.println("Vous ne pourrez pas vous arreter sur le pion, changez de direction\n");
+                                                direction=this.demanderDirection();
+                                            }
+                                        }
+                                    }
+                                    else{
+                                        //s'il y a un bloc coince d'un tour precedent sur la flaque d'hemoglobine a continuer
+                                        //si apres la flaque il n'y a ni monstre ni bord ni pion ni bloc (le bloc sur la flaque peut etre pousse)
+                                        if(this.toutesLesVerificationsBloc(y-nbCases-1, x, p)){
+                                            //si sur la case encore après il n'y a pas non plus
+                                            if(this.toutesLesVerificationsBloc(y-nbCases-2, x, p)){
+                                                p.getPlateau()[y-nbCases][x].setBlocDePierre(false);
+                                                p.getPlateau()[y-nbCases-2][x].setBlocDePierre(true); //echange de la case bloc de pierre
+                                                 for(int a=0; a<nbCases+1; a++){ //jusqu'a apres la flaque, pour mettre le pion
+                                                        this.deplacerPion(direction);
+                                                 }
+                                                 i--;
+                                                 direction=this.demanderDirection(); 
+                                            }
+                                            else{
+                                                //le bloc est pousse jusqu'a la case vide mais ne peut aller plus loin, le pion va etre coince sur la flaque
+                                                if(i>1){
+                                                    for(int a=0; a<nbCases-1; a++){ //jusqu'a l'avant derniere case de la flaque, pour mettre le pion
+                                                             this.deplacerPion(direction);
+                                                        } 
+                                                    i--;
+                                                    direction=this.empecherArret(); //impossible de s'arreter sur cette case
+                                                }
+                                                else{
+                                                    System.out.println("Vous ne pourrez pas vous arreter sur la flaque, changez de direction");
+                                                    direction=this.demanderDirection();
+                                                }
+                                            }
+                                        }
+                                        else{
+                                            //la premiere case n'est pas libre, le bloc ne peut pas etre pousse 
+                                            if(i>1){
+                                                for(int a=0; a<nbCases-2; a++){ //jusqu'a la case avant le bloc, pour mettre le pion
+                                                    this.deplacerPion(direction);
+                                                } 
+                                                i--;
+                                                direction=this.empecherArret(); //impossible de s'arreter sur cette case
+                                            }
+                                            else{
+                                                System.out.println("Vous ne pourrez pas vous arreter sur la flaque, changez de direction");
+                                                direction=this.demanderDirection();
+                                            }
+                                        }
+                                        
+                                    }
+                                }
+                                else{
+                                    //il y a un monstre ou le bord du plateau apres la flaque, le pion va etre bloque sur la flaque
+                                    //s'il y a un bloc bloqué sur la flaque
+                                    if(p.getPlateau()[y-nbCases][x].getBlocDePierre()==true){
+                                        if(i>1){
+                                                for(int a=0; a<nbCases-2; a++){ //jusqu'a la case avant le bloc, pour mettre le pion
+                                                    this.deplacerPion(direction);
+                                                } 
+                                                i--;
+                                                direction=this.empecherArret(); //impossible de s'arreter sur cette case
+                                            }
+                                            else{
+                                                System.out.println("Vous ne pourrez pas vous arreter sur la flaque, changez de direction");
+                                                direction=this.demanderDirection();
+                                            }
+                                    }
+                                    else{
+                                        if(i>1){
+                                                    for(int a=0; a<nbCases-1; a++){ //jusqu'a l'avant derniere case de la flaque, pour mettre le pion
+                                                             this.deplacerPion(direction);
+                                                        } 
+                                                    i--;
+                                                    direction=this.empecherArret(); //impossible de s'arreter sur cette case
+                                                }
+                                                else{
+                                                    System.out.println("Vous ne pourrez pas vous arreter sur la flaque, changez de direction");
+                                                    direction=this.demanderDirection();
+                                                }
+                                    }
+                                    
+                                }
+                                        
+                            }
+                            
                         }
                         //s'il y a le monstre sur la case
                         else{
